@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User and Contacts Data</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid #dddddd;
+            text-align: left;
+            padding: 8px;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h2>User and Contacts Data</h2>
+
+    {% if data.empty %}
+        <p>No data available.</p>
+    {% else %}
+        <table>
+            <thead>
+                <tr>
+                    <th>User ID</th>
+                    <th>Name</th>
+                    <th>Surname</th>
+                    <th>City</th>
+                    <th>Contact ID</th>
+                    <th>Phone Number</th>
+                    <th>Extra Phone Number</th>
+                    <th>Telegram Nickname</th>
+                    <th>Email</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for index, row in data.iterrows() %}
+                    <tr>
+                        <td>{{ row['user_id'] }}</td>
+                        <td>{{ row['name'] }}</td>
+                        <td>{{ row['surname'] }}</td>
+                        <td>{{ row['city_name'] }}</td>
+                        <td>{{ row['contact_id'] }}</td>
+                        <td>{{ row['phone_num'] }}</td>
+                        <td>{{ row['extra_phone_num'] }}</td>
+                        <td>{{ row['tg_nickname'] }}</td>
+                        <td>{{ row['email'] }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+    <a href="{{ url_for('download_excel') }}" download="user_and_contacts_data.xlsx">
+        <button>Download Excel</button></a>
+</body>
+</html>

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create User</title>
+</head>
+<body>
+    <h1>Create User</h1>
+    <form action="/create_user" method="post">
+        <label for="name">Name:</label>
+        <input type="text" id="name" name="name" required><br>
+
+        <label for="surname">Surname:</label>
+        <input type="text" id="surname" name="surname" required><br>
+
+        <label for="city_id">City:</label>
+        <select id="city_id" name="city_id" required>
+            {% for city in cities %}
+                <option value="{{ city[0] }}">{{ city[1] }}</option>
+            {% endfor %}
+        </select><br>
+
+        <label for="phone_num">Phone Number:</label>
+        <input type="text" id="phone_num" name="phone_num"><br>
+
+        <label for="extra_phone_num">Extra Phone Number:</label>
+        <input type="text" id="extra_phone_num" name="extra_phone_num"><br>
+
+        <label for="tg_nickname">Telegram Nickname:</label>
+        <input type="text" id="tg_nickname" name="tg_nickname"><br>
+
+        <label for="email">Email:</label>
+        <input type="email" id="email" name="email"><br>
+
+        <input type="submit" value="Create User">
+    </form>
+</body>
+</html>

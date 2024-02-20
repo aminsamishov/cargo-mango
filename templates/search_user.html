@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Статистика заказов</title>
+    <!-- Подключение библиотеки Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <h1>Статистика заказов по статусам</h1>
+    <canvas id="orderStatusChart" width="800" height="400"></canvas>
+
+    <!-- Скрипт для визуализации данных с помощью Chart.js -->
+    <script>
+        // Функция для отправки запроса на получение статистики заказов
+        function fetchOrderStatusStatistics() {
+            fetch('/order_status_statistics')
+            .then(response => response.json())
+            .then(data => {
+                const labels = Object.keys(data);
+                const counts = Object.values(data);
+
+                // Создание графика с помощью Chart.js
+                const ctx = document.getElementById('orderStatusChart').getContext('2d');
+                const chart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Количество заказов',
+                            data: counts,
+                            backgroundColor: 'skyblue'
+                        }]
+                    },
+                    options: {
+                        scales: {
+                            yAxes: [{
+                                ticks: {
+                                    beginAtZero: true
+                                }
+                            }]
+                        }
+                    }
+                });
+            });
+        }
+
+        // Запуск функции при загрузке страницы
+        document.addEventListener('DOMContentLoaded', fetchOrderStatusStatistics);
+    </script>
+
+<canvas id="cityOrderChart" width="800" height="400"></canvas>
+
+<script>
+    function fetchCityOrderStatistics() {
+        fetch('/city_order_statistics')
+        .then(response => response.json())
+        .then(data => {
+            const labels = Object.keys(data);
+            const counts = Object.values(data);
+
+            const ctx = document.getElementById('cityOrderChart').getContext('2d');
+            const chart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Распределение заказов по городам',
+                        data: counts,
+                        backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#66FF99', '#FF99FF']
+                    }]
+                }
+            });
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', fetchCityOrderStatistics);
+</script>
+
+<canvas id="tarifCostChart" width="800" height="400"></canvas>
+
+<script>
+    function fetchTarifCostStatistics() {
+        fetch('/tarif_cost_statistics')
+        .then(response => response.json())
+        .then(data => {
+            const labels = Object.keys(data);
+            const costs = Object.values(data);
+
+            const ctx = document.getElementById('tarifCostChart').getContext('2d');
+            const chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Средняя стоимость заказов',
+                        data: costs,
+                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 1
+                    }]
+                }
+            });
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', fetchTarifCostStatistics);
+</script>
+
+<canvas id="sendDateChart" width="800" height="400"></canvas>
+
+<script>
+    function fetchSendDateStatistics() {
+        fetch('/send_date_statistics')
+        .then(response => response.json())
+        .then(data => {
+            const labels = Object.keys(data);
+            const counts = Object.values(data);
+
+            const ctx = document.getElementById('sendDateChart').getContext('2d');
+            const chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Распределение заказов по времени отправки из Китая',
+                        data: counts,
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1,
+                        fill: false
+                    }]
+                }
+            });
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', fetchSendDateStatistics);
+</script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            $.ajax({
+                url: '/city_order_statistics',
+                type: 'GET',
+                success: function(response) {
+                    var cityOrderStatistics = $('#cityOrderStatistics');
+                    cityOrderStatistics.append('<h2>City Order Statistics</h2>');
+                    for (var city in response) {
+                        cityOrderStatistics.append('<div class="statistic-item"><h3>' + city + '</h3><p>Order Count: ' + response[city] + '</p></div>');
+                    }
+                },
+                error: function(error) {
+                    console.log('Error fetching city order statistics:', error);
+                }
+            });
+
+            $.ajax({
+                url: '/tarif_cost_statistics',
+                type: 'GET',
+                success: function(response) {
+                    var tarifCostStatistics = $('#tarifCostStatistics');
+                    tarifCostStatistics.append('<h2>Tarif Cost Statistics</h2>');
+                    for (var tarif in response) {
+                        tarifCostStatistics.append('<div class="statistic-item"><h3>' + tarif + '</h3><p>Average Cost: ' + response[tarif] + '</p></div>');
+                    }
+                },
+                error: function(error) {
+                    console.log('Error fetching tarif cost statistics:', error);
+                }
+            });
+        });
+    </script>
+<style>
+    body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f4f4f4;
+}
+
+h1 {
+    text-align: center;
+    margin-top: 50px;
+}
+
+.statistics-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.statistic-item {
+    background-color: #fff;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin: 10px;
+    padding: 20px;
+    width: 300px;
+}
+
+.statistic-item h3 {
+    color: #333;
+    font-size: 20px;
+    margin-bottom: 10px;
+}
+
+.statistic-item p {
+    color: #666;
+    font-size: 16px;
+    margin: 0;
+}
+
+</style>
+</body>
+</html>

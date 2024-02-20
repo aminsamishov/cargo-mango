@@ -1,0 +1,159 @@
+/* admin_panel.css */
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f8f9fa;
+    margin: 0;
+}
+
+#sidebar {
+    position: fixed;
+    height: 100%;
+    width: 240px;
+    top: 0;
+    left: 0;
+    background-color: #3b3e3f;
+    color: #fff;
+    padding-top: 10px;
+    overflow: auto;
+    transition: width 0.3s;
+}
+
+#sidebar ul.nav.flex-column {
+    padding-left: 2%;
+    padding-top: 3%;
+}
+
+#sidebar ul.nav.flex-column li.nav-item {
+    margin-bottom: 4px;
+}
+
+#sidebar ul.nav.flex-column a.nav-link {
+    color: #fff;
+    padding: 8px;
+    font-size: 14px;
+    transition: background-color 0.3s;
+    border-radius: 5px;
+    display: block;
+    text-decoration: none;
+}
+
+#sidebar ul.nav.flex-column a.nav-link:hover {
+    background-color: #495057;
+}
+
+#sidebar ul.nav.flex-column a.nav-link.active {
+    background-color: #007bff;
+    color: #fff;
+    border-left: 5px solid #0056b3;
+}
+
+#content {
+    text-align: center;
+    margin-left: 15%;
+    transition: margin-left 0.3s;
+    padding: 20px;
+}
+
+.content-section {
+    margin-left: 240px;
+    margin-top: 20px;
+    transition: margin-left 0.3s;
+    padding: 20px;
+}
+
+
+body {
+    overflow-x: hidden;
+}
+
+#sidebar {
+    overflow-y: auto;
+}
+
+#content {
+    overflow-y: auto;
+}
+
+@media (max-width: 768px) {
+    #sidebar {
+        overflow-y: hidden;
+    }
+
+    #content {
+        overflow-y: hidden;
+    }
+}
+
+/* Скрытие бокового меню при загрузке страницы */
+#sidebar {
+    display: none;
+  }
+  
+  /* Стили для бургер-меню */
+  #sidebarCollapse {
+    display: block;
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    z-index: 1000;
+  }
+  
+  #sidebarCollapse i {
+    font-size: 24px;
+  }
+  
+  /* Адаптивные стили для бокового меню */
+  @media (max-width: 768px) {
+    #sidebar {
+        width: 100%;
+        padding-top: 10px;
+        position: fixed;
+        top: 0;
+        left: 0;
+        /* Уберите overflow: hidden; */
+        transition: width 0.3s;
+    }
+
+    #content {
+        width: 100%;
+        margin-top: 50px;
+        transition: margin-top 0.3s;}
+  
+    #sidebar ul.nav.flex-column {
+      padding-left: 20px;
+    }
+  
+    .content-section {
+      margin-left: 5%;
+      margin-top: 20px;
+      transition: margin-left 0.3s;
+      padding: 2%;
+    }
+  
+    #sidebar ul.nav.flex-column li.nav-item {
+      margin-bottom: 4px;
+    }
+  
+    #sidebar ul.nav.flex-column a.nav-link {
+      padding: 8px;
+      font-size: 14px;
+    }
+  
+    #sidebar ul.nav.flex-column a.nav-link.active {
+      border-left: none;
+    }
+  
+    /* Показываем боковое меню при клике на бургер-иконку */
+    #sidebar.active {
+        width: 0;
+        /* Уберите overflow: hidden; */
+        transition: width 0.3s;
+    }
+
+    #content.active {
+        margin-top: 0;
+        transition: margin-top 0.3s;
+    }
+  }
+  
