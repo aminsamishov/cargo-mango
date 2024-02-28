@@ -1,7 +1,11 @@
 import datetime
 from io import BytesIO
+import json
 import secrets
-from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_file
+import requests
+import urllib.request
+import xml.etree.ElementTree as ET
 from dotenv import load_dotenv
 import os
 import psycopg2
@@ -17,7 +21,9 @@ from psycopg2.extras import DictCursor
 load_dotenv()
 
 app = Flask(__name__)
+app.config['DEBUG'] = os.environ.get('FLASK_DEBUG')
 app.config['STATIC_FOLDER'] = 'static'
+app.secret_key = 'your_secret_key'
 
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'xlsx', 'xls'}
@@ -36,8 +42,34 @@ def main():
 
 @app.route('/admin')
 def admin_page():
-    return render_template('dashboard.html')
+    return render_template('admin_login.html')
 
+@app.route('/admin/login', methods=['POST'])
+def admin_login():
+    login = request.form['login']
+    password = request.form['password']
+
+    try:
+        connection = get_database_connection()
+        cursor = connection.cursor()
+        cursor.execute("SELECT * FROM Admin WHERE login = %s AND password = %s", (login, password))
+        admin = cursor.fetchone()
+
+        if admin:
+            session['admin_logged_in'] = True
+            return redirect(url_for('admin_dashboard'))
+        else:
+            return "Login failed. Invalid credentials."
+    except Exception as e:
+        return "An error occurred while processing your request. Please try again later."
+
+
+@app.route('/admin/dashboard')
+def admin_dashboard():
+    if 'admin_logged_in' in session and session['admin_logged_in']:
+        return render_template('dashboard.html')
+    else:
+        return redirect(url_for('admin_page'))
 def get_database_connection():
     database_url = os.environ.get('DATABASE_URL')
     connection = psycopg2.connect(database_url)
@@ -617,6 +649,338 @@ def get_send_date_statistics():
         cur.close()
         conn.close()
 
+#--------------------USER-----------------------
+@app.route('/login', methods=['POST', 'GET'])
+def login():
+    if request.method == 'POST':
+        user_id = request.form['user_id']
+        password = request.form['password']
+        
+        # Проверка учетных данных
+        if check_user_credentials(user_id, password):
+            session['user_id'] = user_id
+            return jsonify({'success': True})
+        else:
+            return jsonify({'success': False, 'error': 'Invalid credentials. Please try again.'})
+
+    return render_template('sign-in.html')
+
+
+def check_user_credentials(user_id, password):
+    connection = get_database_connection()
+    cursor = connection.cursor()
+    
+    cursor.execute('SELECT name, phone_num FROM "User" INNER JOIN Contact ON "User".id = Contact.user_id WHERE "User".id = %s', (user_id,))
+    user_data = cursor.fetchone()
+    
+    if user_data:
+        name, phone_num = user_data
+        if password == phone_num:  
+            # Сохраняем имя пользователя в сессии
+            session['user_id'] = user_id
+            session['username'] = name
+            return True
+    
+    return False
+
+@app.route('/logout')
+def logout():
+    session.pop('user_id', None)
+    session.pop('username', None)
+    return redirect(url_for('login'))
+
+
+@app.route('/order-count/<int:user_id>')
+def get_order_count(user_id):
+    connection = get_database_connection()
+    cursor = connection.cursor()
+    cursor.execute('SELECT COUNT(*) FROM "Order" WHERE user_id = %s', (user_id,))
+    order_count = cursor.fetchone()[0]
+    return jsonify({'order_count': order_count})
+
+def get_order_counts_by_status(user_id):
+    connection = get_database_connection() 
+    cursor = connection.cursor()
+
+    cursor.execute('''
+        SELECT order_status_id, COUNT(*)
+        FROM "Order"
+        WHERE user_id = %s
+        GROUP BY order_status_id
+    ''', (user_id,))
+
+    order_counts = cursor.fetchall()  # Получение результатов запроса
+
+    order_counts_by_status = {status_id: count for status_id, count in order_counts}
+
+    cursor.close()
+    connection.close()
+
+    return order_counts_by_status
+
+
+
+@app.route('/order-status/<int:status_id>')
+def get_orders_by_status(status_id):
+    user_id = session.get('user_id')  # Получаем идентификатор пользователя из сессии
+    if user_id is None:
+        return jsonify({'error': 'User not logged in'}), 401  # Возвращаем ошибку, если пользователь не вошел в систему
+
+    connection = get_database_connection()
+    cursor = connection.cursor()
+    cursor.execute('''
+        SELECT track_code, data_send_from_china, amount, massa
+        FROM "Order"
+        WHERE order_status_id = %s AND user_id = %s
+    ''', (status_id, user_id))
+    
+    orders = cursor.fetchall()
+
+    cursor.close()
+    connection.close()
+
+    return jsonify(orders)
+
+@app.route('/search-order')
+def search_order():
+    track_code = request.args.get('track_code')
+    if not track_code:
+        return jsonify({'error': 'Track code is required'}), 400
+
+    connection = get_database_connection()
+    cursor = connection.cursor()
+    cursor.execute('''
+        SELECT o.data_send_from_china, os.name AS order_status, u.name, u.surname
+        FROM "Order" o
+        INNER JOIN Order_status os ON o.order_status_id = os.id
+        INNER JOIN "User" u ON o.user_id = u.id
+        WHERE o.track_code = %s
+    ''', (track_code,))
+    order_data = cursor.fetchone()
+    cursor.close()
+    connection.close()
+
+    if not order_data:
+        return jsonify({'error': 'Order not found'}), 404
+
+    order_details = {
+        'date_sent_from_china': order_data[0],
+        'order_status': order_data[1],
+        'user_name': order_data[2],
+        'user_surname': order_data[3]
+    }
+    print(order_details)  # Добавляем вывод в консоль
+    return jsonify(order_details), 200
+
+
+@app.route('/user')
+def user_page():
+    user_id = session.get('user_id')
+    order_counts = get_order_counts_by_status(user_id)
+    if user_id:
+        return render_template('user_info.html', user_id=user_id, order_counts=order_counts)
+    else:
+        return redirect(url_for('login'))
+
+@app.route('/ver_shopped')
+def ver_shop():
+    return render_template('tables.html')
+
+
+@app.route('/user_stat')
+def user_stat():
+    user_id = session.get('user_id')
+    order_counts = get_order_counts_by_status(user_id)
+    total_amount = total_order_amount()
+    total_weight = get_total_order_weight(user_id)
+    last_month_count = get_order_count_last_month(user_id)
+    last_month_order_amount = get_order_amount_last_month(user_id)
+    connection = get_database_connection()
+    cursor = connection.cursor()
+
+    cursor.execute('''
+        SELECT data_send_from_china, COUNT(*)
+        FROM "Order"
+        WHERE user_id = %s
+        GROUP BY data_send_from_china
+    ''', (user_id,))
+    
+    order_counts_by_date = cursor.fetchall()
+
+    cursor.execute('''
+        SELECT sort_date, SUM(amount)
+        FROM "Order"
+        WHERE user_id = %s
+        GROUP BY sort_date
+    ''', (user_id,))
+    
+    order_counts_by_amount = cursor.fetchall()
+
+    cursor.close()
+    connection.close()
+
+    dates = [str(row[0]) for row in order_counts_by_date]
+    counts = [row[1] for row in order_counts_by_date]
+
+    amount_dates = [str(row[0]) for row in order_counts_by_amount]
+    amounts = [row[1] for row in order_counts_by_amount]
+
+    if user_id:
+        return render_template('stat.html', user_id=user_id, order_counts=order_counts, total_amount=total_amount, total_weight=total_weight, dates=dates, counts=counts, amount_dates=amount_dates, amounts=amounts, last_month_count=last_month_count, last_month_order_amount=last_month_order_amount)
+    else:
+        return redirect(url_for('login'))
+
+def get_order_count_last_month(user_id):
+    current_date = datetime.datetime.now().date()
+
+    start_date = current_date - datetime.timedelta(days=30)
+
+    start_date_str = start_date.strftime('%Y-%m-%d')
+    end_date_str = current_date.strftime('%Y-%m-%d')
+
+    connection = get_database_connection()
+    cursor = connection.cursor()
+    cursor.execute('''
+        SELECT COUNT(*)
+        FROM "Order"
+        WHERE user_id = %s
+        AND data_send_from_china >= %s
+        AND data_send_from_china <= %s
+    ''', (user_id, start_date_str, end_date_str))  
+
+    order_count = cursor.fetchone()[0]
+
+    return order_count
+
+def get_order_amount_last_month(user_id):
+    current_date = datetime.datetime.now().date()
+
+    start_date = current_date - datetime.timedelta(days=30)
+
+    start_date_str = start_date.strftime('%Y-%m-%d')
+    end_date_str = current_date.strftime('%Y-%m-%d')
+
+    connection = get_database_connection()
+    cursor = connection.cursor()
+    cursor.execute('''
+        SELECT SUM(amount)
+        FROM "Order"
+        WHERE user_id = %s
+        AND sort_date >= %s
+        AND sort_date <= %s
+    ''', (user_id, start_date_str, end_date_str))  
+
+    order_amount = cursor.fetchone()[0]
+
+    return order_amount
+
+
+@app.route('/total-order-amount')
+def total_order_amount():
+    user_id = session.get('user_id')
+    print(f"User ID: {user_id}")
+    
+    connection = get_database_connection()
+    cursor = connection.cursor()
+    
+    sql_query = '''
+        SELECT SUM(amount)
+        FROM "Order"
+        WHERE user_id = %s
+    '''
+    print(f"SQL Query: {sql_query}")  # Выводим SQL-запрос в терминал
+
+    cursor.execute(sql_query, (user_id,))
+    
+    total_amount = cursor.fetchone()[0] or 0  
+
+    cursor.close()
+    connection.close()
+
+    if total_amount is not None:
+        return jsonify({'total_amount': total_amount})
+    else:
+        return jsonify({'error': 'Failed to retrieve total order amount'}), 500
+
+@app.route('/total-order-weight')
+def total_order_weight():
+    user_id = session.get('user_id')
+    total_weight = get_total_order_weight(user_id)
+    if total_weight is not None:
+        return jsonify({'total_weight': total_weight})
+    else:
+        return jsonify({'error': 'Failed to retrieve total order weight'}), 500
+        
+def get_total_order_weight(user_id):
+    connection = get_database_connection()
+    cursor = connection.cursor()
+
+    cursor.execute('''
+        SELECT SUM(massa)
+        FROM "Order"
+        WHERE user_id = %s
+    ''', (user_id,))
+
+    total_order_weight = cursor.fetchone()[0] or 0  
+
+    cursor.close()
+    connection.close()
+
+    return total_order_weight    
+
+def get_dollar_rate():
+    response = requests.get('https://www.nbkr.kg/XML/daily.xml')
+    if response.status_code == 200:
+        root = ET.fromstring(response.content)
+        for currency in root.findall("./Currency"):
+            if currency.get("ISOCode") == "USD":
+                return currency.find("Value").text
+    return None
+
+def get_average_order_amount(user_id):
+    connection = get_database_connection()
+    cursor = connection.cursor()
+
+    cursor.execute('''
+        SELECT AVG(amount)
+        FROM "Order"
+        WHERE user_id = %s
+    ''', (user_id,))
+
+    average_order_amount = cursor.fetchone()[0] or 0  
+
+    cursor.close()
+    connection.close()
+
+    return average_order_amount
+
+@app.route('/average-order-amount')
+def average_order_amount():
+    user_id = session.get('user_id')
+    average_amount = get_average_order_amount(user_id)
+    if average_amount is not None:
+        return jsonify({'average_amount': average_amount})
+    else:
+        return jsonify({'error': 'Failed to retrieve average order amount'}), 500
+
+@app.route('/nbkr-api')
+def fetch_dollar_rate():
+    rate = get_dollar_rate()
+    if rate:
+        return jsonify({"rate": rate})  # Возвращаем JSON-объект
+    else:
+        return jsonify({"error": "Error fetching dollar rate"}), 500  # Отправляем ошибку с HTTP статусом 500
+
+@app.route('/nbkr-api-yuan')
+def get_yuan_rate():
+    url = "https://www.nbkr.kg/XML/weekly.xml"
+    response = requests.get(url)
+    if response.status_code == 200:
+        root = ET.fromstring(response.content)
+        for currency in root.findall(".//Currency"):
+            if currency.attrib.get("ISOCode") == "CNY":
+                return jsonify({"rate": currency.find("Value").text})
+    return jsonify({"error": "Unable to retrieve Yuan exchange rate"}), 500
 # def create_user_in_database(name, surname, city_id, phone_num, extra_phone_num, tg_nickname, email):
 #     connection = get_database_connection()
 #     cursor = connection.cursor()
@@ -955,4 +1319,4 @@ def get_send_date_statistics():
 # if __name__ == '__main__':
 #     app.run(debug=True)
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()

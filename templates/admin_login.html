@@ -1,0 +1,108 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <link rel="apple-touch-icon" sizes="76x76" href="../assets/img/apple-icon.png">
+  <link rel="icon" type="image/png" href="../assets/img/favicon.png">
+  <title>
+    Cargo Mango
+  </title>
+  <!-- Nucleo Icons -->
+  <link href="{{ url_for('static', filename='css/nucleo-icons.css') }}" rel="stylesheet" />
+  <link href="{{ url_for('static', filename='css/nucleo-svg.css') }}" rel="stylesheet" />
+  <!-- Font Awesome Icons -->
+  <script src="https://kit.fontawesome.com/42d5adcbca.js" crossorigin="anonymous"></script>
+  <link href="{{ url_for('static', filename='css/nucleo-svg.css') }}" rel="stylesheet" />
+  <!-- CSS Files -->
+  <link id="pagestyle" href="{{ url_for('static', filename='css/argon-dashboard.css') }}" rel="stylesheet" />
+
+</head>
+
+<body class="">
+ 
+  <main class="main-content  mt-0">
+    <section>
+      <div class="page-header min-vh-100">
+        <div class="container">
+          <div class="row">
+            <div class="col-xl-4 col-lg-5 col-md-7 d-flex flex-column mx-lg-0 mx-auto">
+                <div class="card card-plain">
+                    <div class="card-header pb-0 text-start">
+                        <div class="row align-items-center">
+                            <div class="col">
+                                <img src="{{ url_for('static', filename='images/logo2.png') }}" alt="Cargo Mango Logo" style="max-width: 200px;">
+                            </div>
+                            <div class="col">
+                                <h4 class="font-weight-bolder text-orange">Cargo Mango</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-header pb-0 text-start">
+                        <h4 class="font-weight-bolder">Вход в админ панель</h4>
+                        <p class="mb-0">Введите свой логин и пароль для входа</p>
+                    </div>
+                <div class="card-body">
+                    <form action="{{ url_for('admin_login') }}" method="POST">
+                        <div class="mb-3">
+                            <input type="text" name="login" class="form-control form-control-lg" placeholder="Логин" aria-label="Email">
+                        </div>
+                        <div class="mb-3">
+                            <input type="password" name="password" class="form-control form-control-lg" placeholder="Пароль" aria-label="Password">
+                       
+                    <!-- <div class="form-check form-switch">
+                      <input class="form-check-input" type="checkbox" id="rememberMe">
+                      <label class="form-check-label" for="rememberMe">Запомнить меня</label>
+                    </div> -->
+                    <div class="text-center">
+                        <button type="submit" class="btn btn-lg btn-primary btn-lg w-100 mt-4 mb-0">Вход</button>
+                    </div>
+                  </form>
+                </div>
+                <!-- <div class="card-footer text-center pt-0 px-lg-2 px-1">
+                  <p class="mb-4 text-sm mx-auto">
+                    Ещё нет аккаунта?
+                    <a href="javascript:;" class="text-primary text-gradient font-weight-bold">Регистрация</a>
+                  </p>
+                </div> -->
+              </div>
+            </div>
+            <div class="col-6 d-lg-flex d-none h-100 my-auto pe-0 position-absolute top-0 end-0 text-center justify-content-center flex-column">
+              <div class="position-relative bg-gradient-primary h-100 m-3 px-7 border-radius-lg d-flex flex-column justify-content-center overflow-hidden" style="background-image: url('https://avesta.tj/wp-content/uploads/2023/11/f916b23424467fbc0c91abd9049e4d9a.jpg');
+          background-size: cover;">
+                <span class="mask bg-gradient-primary opacity-6"></span>
+                <!-- <h4 class="mt-5 text-white font-weight-bolder position-relative">
+                  
+                  "Груз - новая валюта в мире логистики"</h4>
+                <p class="text-white position-relative">Чем более незаметно выглядит перевозка, тем больше усилий вложено в этот процесс.</p> -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <!--   Core JS Files   -->
+  <script src="{{ url_for('static', filename='js/core/popper.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/core/bootstrap.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/plugins/perfect-scrollbar.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/plugins/smooth-scrollbar.min.js') }}"></script>
+  
+  <script>
+    var win = navigator.platform.indexOf('Win') > -1;
+    if (win && document.querySelector('#sidenav-scrollbar')) {
+      var options = {
+        damping: '0.5'
+      }
+      Scrollbar.init(document.querySelector('#sidenav-scrollbar'), options);
+    }
+  </script>
+  <!-- Github buttons -->
+  <script async defer src="https://buttons.github.io/buttons.js"></script>
+  <!-- Control Center for Soft Dashboard: parallax effects, scripts for the example pages etc -->
+  <script src="{{ url_for('static', filename='js/argon-dashboard.min.js') }}"></script>
+</body>
+
+</html>
