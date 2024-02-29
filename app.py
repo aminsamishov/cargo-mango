@@ -2,7 +2,7 @@ import datetime
 from io import BytesIO
 import json
 import secrets
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_file, abort
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_file
 import requests
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -256,23 +256,35 @@ def get_all_orders():
         cur = conn.cursor(cursor_factory=DictCursor)
 
         cur.execute('''
-            SELECT 
-                o.data_send_from_china, o.track_code, os.name AS order_status, 
-                COALESCE(o.price, t.price) AS tarif_price, t.name AS tarif_name, 
-                o.massa, o.comment, o.sort_date, o.amount,
-                u.name || ' ' || u.surname AS client_fio, u.id AS user_id, 
-                c.name AS city_name, 
-                ct.phone_num, ct.extra_phone_num, ct.tg_nickname, ct.email,
-                CASE 
-                    WHEN t.id = 1 THEN ((t.price - COALESCE(o.price, t.price)) / t.price * 100) 
-                    ELSE NULL 
-                END AS discount
-            FROM "Order" o
-            JOIN Order_status os ON o.order_status_id = os.id
-            LEFT JOIN Tarif t ON t.id = COALESCE(o.tarif_id, 1)
-            LEFT JOIN "User" u ON o.user_id = u.id
-            LEFT JOIN City c ON u.city_id = c.id
-            LEFT JOIN Contact ct ON u.id = ct.user_id
+               SELECT 
+    o.data_send_from_china, 
+    o.track_code, 
+    os.name AS order_status, 
+    t.price AS tarif_price,  -- Используем столбец "price" из таблицы "Tarif"
+    t.name AS tarif_name, 
+    o.massa, 
+    o.comment, 
+    o.sort_date, 
+    o.amount,
+    u.name || ' ' || u.surname AS client_fio, 
+    u.id AS user_id, 
+    c.name AS city_name, 
+    ct.phone_num, 
+    ct.extra_phone_num, 
+    ct.tg_nickname, 
+    ct.email,
+    CASE 
+        WHEN t.id = 1 THEN ((t.price - COALESCE(t.price)) / t.price * 100) 
+        ELSE NULL 
+    END AS discount
+FROM "Order" o
+JOIN Order_status os ON o.order_status_id = os.id
+LEFT JOIN Tarif t ON t.id = COALESCE(o.tarif_id, 1)
+LEFT JOIN "User" u ON o.user_id = u.id
+LEFT JOIN City c ON u.city_id = c.id
+LEFT JOIN Contact ct ON u.id = ct.user_id;
+
+
         ''')
 
         orders = cur.fetchall()
