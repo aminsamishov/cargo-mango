@@ -2,7 +2,7 @@ import datetime
 from io import BytesIO
 import json
 import secrets
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_file
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_file, abort
 import requests
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -981,6 +981,26 @@ def get_yuan_rate():
             if currency.attrib.get("ISOCode") == "CNY":
                 return jsonify({"rate": currency.find("Value").text})
     return jsonify({"error": "Unable to retrieve Yuan exchange rate"}), 500
+
+@app.route('/force_500')
+def force_500():
+    # Вызываем ошибку 500
+    abort(500)
+
+# Роут для страницы ошибки 404 (Страница не найдена)
+@app.errorhandler(404)
+def not_found_error(error):
+    return render_template('pages-404.html'), 404
+
+# Роут для страницы ошибки 403 (Доступ запрещен)
+@app.errorhandler(403)
+def forbidden_error(error):
+    return render_template('page-403.html'), 403
+
+# Роут для страницы ошибки 500 (Внутренняя ошибка сервера)
+@app.errorhandler(500)
+def internal_error(error):
+    return render_template('pages-500.html'), 500
 # def create_user_in_database(name, surname, city_id, phone_num, extra_phone_num, tg_nickname, email):
 #     connection = get_database_connection()
 #     cursor = connection.cursor()
