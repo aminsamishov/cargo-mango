@@ -6,7 +6,6 @@ ENV PYTHONUNBUFFERED True
 ENV APP_HOME /app
 WORKDIR $APP_HOME
 
-# Копирование всех файлов в текущий каталог контейнера
 COPY . ./
 
 

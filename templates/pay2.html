@@ -248,207 +248,242 @@
     <!-- End Navbar -->
    
   
-    <div class="container-fluid py-4">
-      <div class="row justify-content-center">
-        <div class="col-12">
-          <div class="card">
-            <div class="card-header">
-              <h5 class="card-title text-center">Заказы</h5>
-            </div>
-            <div class="card-body">
-              <div class="table-responsive">
-                <table id="orderTable" class="table display align-items-center mb-0">
-                  <thead>
-                    <tr>
-                      <th>Дата отправки</th>
-                      <th>Трек-код</th>
-                      <th>Статус заказа</th>
-                      <th>Тариф</th>
-                      <th>Масса</th>
-                      <th>Комментарий</th>
-                      <th>ФИО клиента</th>
-                      <th>ID клиента</th>
-                      <th>Город</th>
-                      <th>Телефон</th>
-                      <th>Доп. телефон</th>
-                      <th>TG ник</th>
-                      <th>Email</th>
-                      <th>Дата сортировки</th>
-                      <th>Сумма</th>
-                      <th>Скидка</th>
-                      <th>Статус оплаты</th>
-                    </tr>
-                  </thead>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    
     <div class="container mt-4">
-      <div class="row"> 
+      <div class="row">
           <div class="col">
               <div class="card">
                   <div class="card-header">
-                      <h5 class="card-title">Поиск заказа по трек-коду и обновление пользователя</h5>
+                      <h4 class="card-title">Форма поиска информации о заказе</h4>
                   </div>
                   <div class="card-body">
-                      <form id="fetchOrderByTrackCodeForm" class="form-group">
-                          <label for="trackCode">Введите трек-код заказа:</label>
-                          <input type="text" class="form-control" id="trackCode" name="track_code">
-                          <label for="newUserId">Введите новый ID пользователя:</label>
-                          <input type="text" class="form-control" id="newUserId" name="new_user_id">
-                          <button type="submit" class="btn btn-primary mt-2">Найти заказ и обновить пользователя</button>
-                      </form>
+                      <div class="form-group">
+                          <label for="trackCode">Введите трек-код посылки</label>
+                          <input type="text" class="form-control" id="trackCode" placeholder="Введите трек-код" autofocus>
+                      </div>
+                      <button type="button" class="btn btn-primary" onclick="getOrderInfo()">Получить информацию о заказе</button>
                   </div>
               </div>
           </div>
       </div>
+      <div class="row mt-4">
+          <div class="col">
+              <div id="orderInfoContainer" class="card" style="display: none;">
+                  <div class="card-header">
+                      <h4 class="card-title">Информация о заказе</h4>
+                  </div>
+                  <div class="card-body">
+                      <table class="table">
+                          <thead>
+                              <tr>
+                                  <th>Трек-Код</th>
+                                  <th>Order ID</th>
+                                  <th>Пользователь</th>
+                                  <th>Город</th>
+                                  <th>Тариф пользователя</th>
+                                  <th>Статус заказа</th>
+                                  <th>Масса</th>
+                                  <th>Статус оплаты</th>
+                                  <th>Сумма</th>
+                              </tr>
+                          </thead>
+                          <tbody id="orderInfoBody"></tbody>
+                      </table>
+                  </div>
+              </div>
+              <!-- Форма оплаты всех заказов -->
+              <div class="container mt-4">
+                <div class="row">
+                    <div class="col">
+                        <div class="card">
+                            <div class="card-header">
+                                <h4 class="card-title">Форма оплаты заказов</h4>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label for="managerId">ID менеджера</label>
+                                    <input type="text" class="form-control" id="managerId" placeholder="Введите ID менеджера">
+                                </div>
+                                <div class="form-group">
+                                    <label for="paymentTypeName">Выберите тип оплаты</label>
+                                    <select class="form-control" id="paymentTypeName"></select>
+                                </div>
+                                <button type="button" class="btn btn-success" onclick="payAllOrders()">Оплатить все заказы</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <script>
+                fetch('/payment_types', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.payment_types) {
+                        var paymentTypeSelect = document.getElementById('paymentTypeName');
+                        data.payment_types.forEach(paymentType => {
+                            var option = document.createElement('option');
+                            option.value = paymentType.id;
+                            option.text = paymentType.name;
+                            paymentTypeSelect.appendChild(option);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Ошибка при загрузке типов оплаты');
+                });
+            
+                   </script>
+            
+      </div>
   </div>
   
-  <script>
-  $(document).ready(function() {
-      $('#fetchOrderByTrackCodeForm').on('submit', function(e) {
-          e.preventDefault(); // Предотвращаем стандартную отправку формы
-          var trackCode = $('#trackCode').val(); // Получаем введенный трек-код заказа
-          var newUserId = $('#newUserId').val(); // Получаем новый ID пользователя для обновления
-  
-          console.log("Track code:", trackCode);
-          console.log("New user ID:", newUserId);
-          
-          $.ajax({
-              url: '/update_order_user', 
-              type: 'POST',
-              contentType: 'application/json',
-              data: JSON.stringify({track_code: trackCode, new_user_id: newUserId}), 
-              dataType: 'json',
-              success: function(response) {
-                  alert('Заказ найден и пользователь обновлен!');
-              },
-              error: function(xhr, status, error) {
-                  console.error("Ошибка при поиске заказа и обновлении пользователя: ", status, error);
-              }
-          });
-      });
-  });
-  </script>
-  
 
-    <script>
-      $(document).ready(function() {
-        $('#orderTable').DataTable({
-          dom: 'Bfrtip',
-          buttons: ['copyHtml5', 'excelHtml5', 'pdfHtml5', 'colvis'],
-          ajax: {
-            url: '/get_all_orders', 
-            dataSrc: ''
-          },
-          columns: [
-    { data: 'data_send_from_china' },
-    { data: 'track_code' },
-    { data: 'order_status' },
-    { data: 'user_tarif' }, 
-    { data: 'massa' },
-    { data: 'comment' },
-    { data: 'client_fio' },
-    { data: 'user_id' },
-    { data: 'city_name' },
-    { data: 'phone_num' },
-    { data: 'extra_phone_num' },
-    { data: 'tg_nickname' },
-    { data: 'email' },
-    { data: 'sort_date' },
-    { data: 'amount' },
-    { data: 'discount_amount' },
-    {data: 'payment_status'}
-]
-        });
-      });
-    </script>
-    
-    <style>
-      /* Обертка для элемента поиска, чтобы использовать flexbox для выравнивания */
-      .dataTables_wrapper .dataTables_filter {
-        display: flex;
-        justify-content: center; /* Центрирует содержимое по горизонтали */
-        align-items: center; /* Центрирует содержимое по вертикали */
-        float: none !important; /* Убирает обтекание, заданное DataTables по умолчанию */
-      }
-    </style>
-   
-  
-  <!-- Подключение необходимых библиотек и скриптов -->
-  <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-  <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
-  <script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
-  <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
-  <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.print.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
-  
   <script>
-  $(document).ready(function() {
-      $('#fetchOrdersForm').submit(function(event) {
-          event.preventDefault();
-          var userId = $('#userIdInput').val();
-          $('#ordersTable tbody').empty();
-          $('#ordersTable').show();
-          $('#totalCost').hide();
+      function getOrderInfo() {
+          var trackCode = document.getElementById('trackCode').value;
   
-          $.ajax({
-              url: '/get_user_orders/' + userId,
-              type: 'GET',
-              success: function(data) {
-                  $('#ordersTable tbody').empty();
-                  var totalAmount = 0;
-  
-                  data.forEach(function(order) {
-                      const row = `<tr>
-                          <td>${order.data_send_from_china}</td>
-                          <td>${order.track_code}</td>
-                          <td>${order.order_status}</td>
-                          <td>${order.tarif_name}</td>
-                          <td>${order.massa}</td>
-                          <td>${order.comment}</td>
-                          <td>${order.client_fio}</td>
-                          <td>${order.user_id}</td>
-                          <td>${order.city_name}</td>
-                          <td>${order.phone_num}</td>
-                          <td>${order.extra_phone_num}</td>
-                          <td>${order.tg_nickname}</td>
-                          <td>${order.email}</td>
-                          <td>${order.sort_date}</td>
-                          <td>${order.tarif_price}</td>
-                          <td>${order.amount}</td>
-                          <td>${order.discount}</td>
-                      </tr>`;
-                      $('#ordersTable tbody').append(row);
-                      totalAmount += parseFloat(order.amount);
-                  });
-  
-                  $('#totalCost').text('Общая стоимость: ' + totalAmount.toFixed(2)).show();
-  
-                  // Инициализация DataTables с кнопками экспорта в PDF и Excel после успешного завершения AJAX-запроса
-                  $('#ordersTable').DataTable({
-                      dom: 'Bfrtip',
-                      buttons: [
-                          'copyHtml5',
-                          'excelHtml5',
-                          'pdfHtml5',
-                          'print'
-                      ]
-                  });
+          // Отправляем запрос на сервер для получения информации о заказе
+          fetch('/get_order_info', {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/x-www-form-urlencoded'
               },
-              error: function(error) {
-                  console.log('Ошибка при получении данных: ', error);
+              body: 'trackCode=' + encodeURIComponent(trackCode)
+          })
+          .then(response => response.json())
+          .then(data => {
+              if (data.success) {
+                  var orderInfo = data.order_info;
+                  var orderInfoContainer = document.getElementById('orderInfoContainer');
+                  var orderInfoBody = document.getElementById('orderInfoBody');
+                  
+                  // Объединяем имя, фамилию и отчество в одну строку
+                  var fullName = orderInfo.user_name + ' ' + orderInfo.surname + ' ' + orderInfo.otchestvo;
+  
+                  // Добавляем информацию о заказе в таблицу
+                  var tableRow = document.createElement('tr');
+                  tableRow.innerHTML = `
+                      <td>${orderInfo.track_code}</td>
+                      <td>${orderInfo.id}</td>
+                      <td>${fullName}</td>
+                      <td>${orderInfo.city_name}</td>
+                      <td>${orderInfo.user_tarif}</td>
+                      <td>${orderInfo.order_status}</td>
+                      <td>${orderInfo.massa}</td>
+                      <td>${orderInfo.payment_status}</td>
+                      <td>${orderInfo.amount}</td>
+                  `;
+                  orderInfoBody.appendChild(tableRow);
+  
+                  // Показываем контейнер с информацией о заказе
+                  orderInfoContainer.style.display = 'block';
+  
+                  // Очищаем поле ввода после получения информации
+                  document.getElementById('trackCode').value = "";
+  
+                  // Вызываем функцию для подсчета общей суммы заказов
+                  calculateTotalAmount();
+              } else {
+                  alert('Order not found');
               }
+          })
+          .catch(error => {
+              console.error('Error:', error);
           });
-      });
-  });
-  </script>
+      }
+      function calculateTotalAmount() {
+          var totalAmount = 0;
+          var table = document.getElementById('orderInfoBody');
+          var rows = table.getElementsByTagName('tr');
+  
+          // Проходимся по каждой строке таблицы, начиная со второй (первая строка - заголовок)
+          for (var i = 0; i < rows.length; i++) {
+              var row = rows[i];
+              var cells = row.getElementsByTagName('td');
+              
+              // Пропускаем строку с общей суммой
+              if (row.id === 'totalRow') {
+                  continue;
+              }
+              
+              var amountText = cells[8].innerText; // Получаем текстовое значение из восьмой ячейки (столбца с суммой)
+              var amount = parseFloat(amountText);
+              
+              // Добавляем сумму к общей сумме заказов
+              totalAmount += amount;
+          }
+  
+          // Удаляем предыдущую строку с общей суммой, если она есть
+          var totalRow = table.querySelector('#totalRow');
+          if (totalRow) {
+              table.removeChild(totalRow);
+          }
+  
+          // Добавляем строку с общей суммой заказов в конец таблицы
+          totalRow = table.insertRow(-1);
+          totalRow.id = "totalRow"; // Устанавливаем ID строки, чтобы можно было удалить при следующем вызове calculateTotalAmount
+          var cell = totalRow.insertCell(0);
+          cell.colSpan = "9"; // Занимает все столбцы таблицы
+          cell.innerText = "Total Amount: " + totalAmount.toFixed(2); // Отображаем общую сумму с двумя знаками после запятой
+      }
+  
+    
+</script>
+
+  
+<script>
+  function payAllOrders() {
+    var managerId = document.getElementById('managerId').value;
+    var paymentTypeName = document.getElementById('paymentTypeName').value;
+
+    // Получаем все строки таблицы заказов
+    var orderRows = document.querySelectorAll('#orderInfoBody td:first-child');
+
+    // Создаем массив для хранения трек-кодов заказов
+    var trackCodes = [];
+
+    // Проходимся по каждой строке таблицы
+    orderRows.forEach(function(cell) {
+        var trackCode = cell.innerText; // Трек-Код
+        trackCodes.push(trackCode);
+    });
+
+    // Отправляем массив трек-кодов на сервер для оплаты
+    fetch('/pay_selected_orders', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            manager_id: managerId,
+            payment_type_name: paymentTypeName,
+            track_codes: trackCodes
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.success);
+            // Обновляем информацию о заказах после оплаты
+            getOrderInfo();
+        } else {
+            alert(data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Ошибка при выполнении запроса');
+    });
+}
+
+</script>
+  
   
   </main>
   <div class="fixed-plugin">
@@ -458,7 +493,7 @@
     <div class="card shadow-lg">
       <div class="card-header pb-0 pt-3 ">
         <div class="float-start">
-          <h5 class="mt-3 mb-0">Cargo Mango Configurator</h5>
+          <h5 class="mt-3 mb-0">Argon Configurator</h5>
           <p>See our dashboard options.</p>
         </div>
         <div class="float-end mt-4">
@@ -476,8 +511,7 @@
         </div>
         <a href="javascript:void(0)" class="switch-trigger background-color">
           <div class="badge-colors my-2 text-start">
-            <span class="badge filter bg-gradient-primary active" data-color="primary"
-              onclick="sidebarColor(this)"></span>
+            <span class="badge filter bg-gradient-primary active" data-color="primary" onclick="sidebarColor(this)"></span>
             <span class="badge filter bg-gradient-dark" data-color="dark" onclick="sidebarColor(this)"></span>
             <span class="badge filter bg-gradient-info" data-color="info" onclick="sidebarColor(this)"></span>
             <span class="badge filter bg-gradient-success" data-color="success" onclick="sidebarColor(this)"></span>
@@ -491,10 +525,8 @@
           <p class="text-sm">Choose between 2 different sidenav types.</p>
         </div>
         <div class="d-flex">
-          <button class="btn bg-gradient-primary w-100 px-3 mb-2 active me-2" data-class="bg-white"
-            onclick="sidebarType(this)">White</button>
-          <button class="btn bg-gradient-primary w-100 px-3 mb-2" data-class="bg-default"
-            onclick="sidebarType(this)">Dark</button>
+          <button class="btn bg-gradient-primary w-100 px-3 mb-2 active me-2" data-class="bg-white" onclick="sidebarType(this)">White</button>
+          <button class="btn bg-gradient-primary w-100 px-3 mb-2" data-class="bg-default" onclick="sidebarType(this)">Dark</button>
         </div>
         <p class="text-sm d-xl-none d-block mt-2">You can change the sidenav type just on desktop view.</p>
         <!-- Navbar Fixed -->
@@ -511,102 +543,28 @@
             <input class="form-check-input mt-1 ms-auto" type="checkbox" id="dark-version" onclick="darkMode(this)">
           </div>
         </div>
-
+        <a class="btn bg-gradient-dark w-100" href="https://www.creative-tim.com/product/argon-dashboard">Free Download</a>
+        <a class="btn btn-outline-dark w-100" href="https://www.creative-tim.com/learning-lab/bootstrap/license/argon-dashboard">View documentation</a>
+        <div class="w-100 text-center">
+          <a class="github-button" href="https://github.com/creativetimofficial/argon-dashboard" data-icon="octicon-star" data-size="large" data-show-count="true" aria-label="Star creativetimofficial/argon-dashboard on GitHub">Star</a>
+          <h6 class="mt-3">Thank you for sharing!</h6>
+          <a href="https://twitter.com/intent/tweet?text=Check%20Argon%20Dashboard%20made%20by%20%40CreativeTim%20%23webdesign%20%23dashboard%20%23bootstrap5&amp;url=https%3A%2F%2Fwww.creative-tim.com%2Fproduct%2Fargon-dashboard" class="btn btn-dark mb-0 me-2" target="_blank">
+            <i class="fab fa-twitter me-1" aria-hidden="true"></i> Tweet
+          </a>
+          <a href="https://www.facebook.com/sharer/sharer.php?u=https://www.creative-tim.com/product/argon-dashboard" class="btn btn-dark mb-0 me-2" target="_blank">
+            <i class="fab fa-facebook-square me-1" aria-hidden="true"></i> Share
+          </a>
+        </div>
       </div>
     </div>
   </div>
-  </div>
-  </div>
-  <!--   Core JS Files   -->
-  <script src="{{ url_for('static', filename='js/core/popper.min.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/core/bootstrap.min.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/plugins/perfect-scrollbar.min.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/plugins/smooth-scrollbar.min.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/plugins/chartjs.min.js') }}"></script>
+<!--   Core JS Files   -->
+<script src="{{ url_for('static', filename='js/core/popper.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/core/bootstrap.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/plugins/perfect-scrollbar.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/plugins/smooth-scrollbar.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/plugins/chartjs.min.js') }}"></script>
 
-  <script>
-    var ctx1 = document.getElementById("chart-line").getContext("2d");
-
-    var gradientStroke1 = ctx1.createLinearGradient(0, 230, 0, 50);
-
-    gradientStroke1.addColorStop(1, 'rgba(94, 114, 228, 0.2)');
-    gradientStroke1.addColorStop(0.2, 'rgba(94, 114, 228, 0.0)');
-    gradientStroke1.addColorStop(0, 'rgba(94, 114, 228, 0)');
-    new Chart(ctx1, {
-      type: "line",
-      data: {
-        labels: ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-        datasets: [{
-          label: "Mobile apps",
-          tension: 0.4,
-          borderWidth: 0,
-          pointRadius: 0,
-          borderColor: "#5e72e4",
-          backgroundColor: gradientStroke1,
-          borderWidth: 3,
-          fill: true,
-          data: [50, 40, 300, 220, 500, 250, 400, 230, 500],
-          maxBarThickness: 6
-
-        }],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            display: false,
-          }
-        },
-        interaction: {
-          intersect: false,
-          mode: 'index',
-        },
-        scales: {
-          y: {
-            grid: {
-              drawBorder: false,
-              display: true,
-              drawOnChartArea: true,
-              drawTicks: false,
-              borderDash: [5, 5]
-            },
-            ticks: {
-              display: true,
-              padding: 10,
-              color: '#fbfbfb',
-              font: {
-                size: 11,
-                family: "Open Sans",
-                style: 'normal',
-                lineHeight: 2
-              },
-            }
-          },
-          x: {
-            grid: {
-              drawBorder: false,
-              display: false,
-              drawOnChartArea: false,
-              drawTicks: false,
-              borderDash: [5, 5]
-            },
-            ticks: {
-              display: true,
-              color: '#ccc',
-              padding: 20,
-              font: {
-                size: 11,
-                family: "Open Sans",
-                style: 'normal',
-                lineHeight: 2
-              },
-            }
-          },
-        },
-      },
-    });
-  </script>
   <script>
     var win = navigator.platform.indexOf('Win') > -1;
     if (win && document.querySelector('#sidenav-scrollbar')) {
@@ -616,22 +574,11 @@
       Scrollbar.init(document.querySelector('#sidenav-scrollbar'), options);
     }
   </script>
-  <!-- Github buttons -->
-  <script async defer src="https://buttons.github.io/buttons.js"></script>
-  <!-- Control Center for Soft Dashboard: parallax effects, scripts for the example pages etc -->
-  <script src="{{ url_for('static', filename='js/argon-dashboard.min.js') }}"></script>
-  <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
-    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
-
-
+   <!-- Github buttons -->
+   <script async defer src="https://buttons.github.io/buttons.js"></script>
+   <!-- Control Center for Soft Dashboard: parallax effects, scripts for the example pages etc -->
+   <script src="{{ url_for('static', filename='js/argon-dashboard.min.js') }}"></script>
+ 
 </body>
 
 </html>
-
-

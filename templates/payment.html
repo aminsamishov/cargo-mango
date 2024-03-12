@@ -84,24 +84,65 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link " href="../pages/virtual-reality.html">
-                        <div
-                            class="icon icon-shape icon-sm border-radius-md text-center me-2 d-flex align-items-center justify-content-center">
-                            <i class="ni ni-app text-info text-sm opacity-10"></i>
-                        </div>
-                        <span class="nav-link-text ms-1">Загрузка данных</span>
-                    </a>
+                  <a class="nav-link " href="{{ url_for('sort_reg_page') }}">
+                      <div
+                          class="icon icon-shape icon-sm border-radius-md text-center me-2 d-flex align-items-center justify-content-center">
+                          <i class="ni ni-app text-info text-sm opacity-10"></i>
+                      </div>
+                      <span class="nav-link-text ms-1">Сортировка (регионы)</span>
+                  </a>
+              </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="{{ url_for('sorting_page') }}">
+                    <div
+                        class="icon icon-shape icon-sm border-radius-md text-center me-2 d-flex align-items-center justify-content-center">
+                        <i class="ni ni-app text-info text-sm opacity-10"></i>
+                    </div>
+                    <span class="nav-link-text ms-1">Сортировка</span>
+                </a>
+                
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('sorting_page') }}">
-                        <div
-                            class="icon icon-shape icon-sm border-radius-md text-center me-2 d-flex align-items-center justify-content-center">
-                            <i class="ni ni-app text-info text-sm opacity-10"></i>
-                        </div>
-                        <span class="nav-link-text ms-1">Сортировка</span>
-                    </a>
-
+                  <a class="nav-link" href="{{ url_for('item_page') }}">
+                    <div
+                        class="icon icon-shape icon-sm border-radius-md text-center me-2 d-flex align-items-center justify-content-center">
+                        <i class="ni ni-app text-info text-sm opacity-10"></i>
+                    </div>
+                    <span class="nav-link-text ms-1">Товары для дизайнеров</span>
+                </a>
+                
                 </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="{{ url_for('lesson_page') }}">
+                    <div
+                        class="icon icon-shape icon-sm border-radius-md text-center me-2 d-flex align-items-center justify-content-center">
+                        <i class="ni ni-app text-info text-sm opacity-10"></i>
+                    </div>
+                    <span class="nav-link-text ms-1">Полезные уроки</span>
+                </a>
+                
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="{{ url_for('managers_page') }}">
+                    <div
+                        class="icon icon-shape icon-sm border-radius-md text-center me-2 d-flex align-items-center justify-content-center">
+                        <i class="ni ni-app text-info text-sm opacity-10"></i>
+                    </div>
+                    <span class="nav-link-text ms-1">Менеджеры</span>
+                </a>
+                
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="{{ url_for('res_page') }}">
+                    <div
+                        class="icon icon-shape icon-sm border-radius-md text-center me-2 d-flex align-items-center justify-content-center">
+                        <i class="ni ni-app text-info text-sm opacity-10"></i>
+                    </div>
+                    <span class="nav-link-text ms-1">Полезные ресурсы</span>
+                </a>
+                
+                </li>
+                
                 <li class="nav-item">
                     <a class="nav-link " href="../pages/rtl.html">
                         <div
@@ -175,9 +216,9 @@
                     <ol class="breadcrumb bg-transparent mb-0 pb-0 pt-1 px-0 me-sm-6 me-5">
                         <li class="breadcrumb-item text-sm"><a class="opacity-5 text-white"
                                 href="javascript:;">Orders</a></li>
-                        <li class="breadcrumb-item text-sm text-white active" aria-current="page">Sorting</li>
+                        <li class="breadcrumb-item text-sm text-white active" aria-current="page">Payment</li>
                     </ol>
-                    <h6 class="font-weight-bolder text-white mb-0">Управление Посылками</h6>
+                    <h6 class="font-weight-bolder text-white mb-0">Оплата по коду клиента</h6>
                 </nav>
                 <div class="collapse navbar-collapse mt-sm-0 mt-2 me-md-0 me-sm-4" id="navbar">
                     <div class="ms-md-auto pe-md-3 d-flex align-items-center">
@@ -210,7 +251,7 @@
         </nav>
         <!-- End Navbar -->
 
-        <style>
+        <!-- <style>
             /* Обертка для элемента поиска, чтобы использовать flexbox для выравнивания */
             .dataTables_wrapper .dataTables_filter {
                 display: flex;
@@ -310,9 +351,22 @@
                 overflow-x: auto;
                 /* Добавляет горизонтальную прокрутку при необходимости */
             }
+        </style> -->
+
+        <style>
+            body {
+                overflow: hidden; /* Запрещаем прокрутку страницы */
+            }
+        
+        
+            #tableContainer {
+                padding: 4% 1%;
+                max-height: 80vh; /* Устанавливаем максимальную высоту для таблицы, чтобы она не занимала всю высоту экрана */
+                overflow-y: auto; /* Добавляем вертикальную прокрутку, если содержимое таблицы выходит за пределы блока */
+                background-color: #ffffff; /* Цвет фона таблицы */
+            }
         </style>
-
-
+        
 
 <div class="container mt-4">
     <div class="row">
@@ -338,12 +392,7 @@
                             <th>ФИО клиента</th>
                             <th>ID клиента</th>
                             <th>Город</th>
-                            <th>Телефон</th>
-                            <th>Доп. телефон</th>
-                            <th>TG ник</th>
-                            <th>Email</th>
                             <th>Дата сортировки</th>
-                            <th>Цена</th>
                             <th>Сумма</th>
                             <th>Скидка</th>
                         </tr>
@@ -354,6 +403,80 @@
                 </table>
                 <div id="totalCost">Общая стоимость: 0</div>
             </div>
+            
+            <script>
+                $(document).ready(function () {
+                    $('#fetchOrdersForm').submit(function (event) {
+                        event.preventDefault();
+                        var userId = $('#userIdInput').val();
+                        $('#ordersTable tbody').empty();
+                        $('#ordersTable').show();
+                        $('#totalCost').hide();
+            
+                        $.ajax({
+                            url: '/get_user_orders/' + userId,
+                            type: 'GET',
+                            success: function (data) {
+                                $('#ordersTable tbody').empty();
+                                var totalAmount = 0;
+            
+                                data.forEach(function (order) {
+                                    const row = `<tr>
+                                        <td>${order.data_send_from_china}</td>
+                                        <td>${order.track_code}</td>
+                                        <td>${order.order_status}</td>
+                                        <td>${order.user_tarif}</td>
+                                        <td>${order.massa}</td>
+                                        <td>${order.comment}</td>
+                                        <td>${order.client_fio}</td>
+                                        <td>${order.user_id}</td>
+                                        <td>${order.city_name}</td>
+                                        <td>${order.sort_date}</td>
+                                        <td>${order.amount}</td>
+                                        <td>${order.discount_amount}</td>
+                                    </tr>`;
+                                    $('#ordersTable tbody').append(row);
+                                    totalAmount += parseFloat(order.amount);
+                                });
+            
+                                $('#totalCost').text('Общая стоимость: ' + totalAmount.toFixed(
+                                    2)).show();
+            
+                                // Инициализация DataTables с кнопками экспорта в PDF и Excel после успешного завершения AJAX-запроса
+                                $('#ordersTable').DataTable({
+                                    dom: 'Bfrtip',
+                                    buttons: [
+                                        'copyHtml5',
+                                        'excelHtml5',
+                                        'pdfHtml5',
+                                        'print'
+                                    ]
+                                });
+                            },
+                            error: function (error) {
+                                console.log('Ошибка при получении данных: ', error);
+                            }
+                        });
+            
+                    });
+            
+                    $('#payOrdersBtn').click(function () {
+                        var userId = $('#userIdInput').val(); // Получаем user_id из поля ввода
+                        $.ajax({
+                            url: '/update_orders',
+                            type: 'POST',
+                            data: { user_id: userId }, // Передаем user_id в запросе
+                            success: function (response) {
+                                $('#paymentMessage').text(response); // Отображение сообщения об успешной оплате
+                            },
+                            error: function (error) {
+                                $('#paymentMessage').text('Ошибка при оплате заказов'); // Отображение сообщения об ошибке
+                            }
+                        });
+                    });
+                });
+            </script>
+            
         </div>
     </div>
     <button id="payOrdersBtn" class="btn btn-primary">Оплатить заказы</button>
@@ -370,83 +493,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
 
-<script>
-    $(document).ready(function () {
-        $('#fetchOrdersForm').submit(function (event) {
-            event.preventDefault();
-            var userId = $('#userIdInput').val();
-            $('#ordersTable tbody').empty();
-            $('#ordersTable').show();
-            $('#totalCost').hide();
 
-            $.ajax({
-                url: '/get_user_orders/' + userId,
-                type: 'GET',
-                success: function (data) {
-                    $('#ordersTable tbody').empty();
-                    var totalAmount = 0;
 
-                    data.forEach(function (order) {
-                        const row = `<tr>
-                          <td>${order.data_send_from_china}</td>
-                          <td>${order.track_code}</td>
-                          <td>${order.order_status}</td>
-                          <td>${order.tarif_name}</td>
-                          <td>${order.massa}</td>
-                          <td>${order.comment}</td>
-                          <td>${order.client_fio}</td>
-                          <td>${order.user_id}</td>
-                          <td>${order.city_name}</td>
-                          <td>${order.phone_num}</td>
-                          <td>${order.extra_phone_num}</td>
-                          <td>${order.tg_nickname}</td>
-                          <td>${order.email}</td>
-                          <td>${order.sort_date}</td>
-                          <td>${order.tarif_price}</td>
-                          <td>${order.amount}</td>
-                          <td>${order.discount}</td>
-                      </tr>`;
-                        $('#ordersTable tbody').append(row);
-                        totalAmount += parseFloat(order.amount);
-                    });
-
-                    $('#totalCost').text('Общая стоимость: ' + totalAmount.toFixed(
-                        2)).show();
-
-                    // Инициализация DataTables с кнопками экспорта в PDF и Excel после успешного завершения AJAX-запроса
-                    $('#ordersTable').DataTable({
-                        dom: 'Bfrtip',
-                        buttons: [
-                            'copyHtml5',
-                            'excelHtml5',
-                            'pdfHtml5',
-                            'print'
-                        ]
-                    });
-                },
-                error: function (error) {
-                    console.log('Ошибка при получении данных: ', error);
-                }
-            });
-
-        });
-
-        $('#payOrdersBtn').click(function () {
-            var userId = $('#userIdInput').val(); // Получаем user_id из поля ввода
-            $.ajax({
-                url: '/update_orders',
-                type: 'POST',
-                data: { user_id: userId }, // Передаем user_id в запросе
-                success: function (response) {
-                    $('#paymentMessage').text(response); // Отображение сообщения об успешной оплате
-                },
-                error: function (error) {
-                    $('#paymentMessage').text('Ошибка при оплате заказов'); // Отображение сообщения об ошибке
-                }
-            });
-        });
-    });
-</script>
 
 
 

@@ -4,6 +4,8 @@ import json
 import secrets
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_file
 import requests
+from decimal import Decimal
+import numpy as np
 import urllib.request
 import xml.etree.ElementTree as ET
 from dotenv import load_dotenv
@@ -18,9 +20,20 @@ from io import StringIO
 from werkzeug.utils import secure_filename
 import logging
 from psycopg2.extras import DictCursor
+from flask_caching import Cache
+from datetime import date, datetime
+
+
+# Инициализация кэша
+cache = Cache()
+
+
 load_dotenv()
 
+
 app = Flask(__name__)
+
+cache.init_app(app)
 app.config['DEBUG'] = os.environ.get('FLASK_DEBUG')
 app.config['STATIC_FOLDER'] = 'static'
 app.secret_key = 'your_secret_key'
@@ -38,6 +51,10 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 def main():
     fonts = {'icomoon': {'style': 'fonts/icomoon/style.css'}}
     return render_template('main.html', fonts=fonts)
+
+@app.route('/managers')
+def managers_page():
+    return render_template('managers.html')
 
 
 @app.route('/admin')
@@ -98,6 +115,13 @@ def upload_data_to_db():
         return jsonify({'error': 'Ошибка при выборе столбцов'}), 500
 
     try:
+        # Преобразование значений столбца user_id к целочисленному типу
+        df['user_id'] = df['user_id'].astype('Int64')
+    except Exception as e:
+        logging.error(f'Ошибка при преобразовании типа данных в столбце user_id: {e}')
+        return jsonify({'error': 'Ошибка при обработке данных'}), 500
+
+    try:
         buffer = StringIO()
         df.to_csv(buffer, index=False, header=False, sep='\t')
         buffer.seek(0)
@@ -116,10 +140,33 @@ def upload_data_to_db():
         logging.error(error_message)
         return jsonify({'error': error_message}), 500
     return jsonify({'message': 'Данные успешно загружены'}), 200
-
-
 #-----------------------SORTING----------------------------------------
-    
+
+@app.route('/sort_reg')
+def sort_reg_page():
+    return render_template("sort_reg.html")
+
+@app.route('/update_order_status5', methods=['POST'])
+def update_order_status5():
+    data = request.json
+    track_code = data.get('track_code')
+
+    try:
+        conn = get_database_connection()
+        cur = conn.cursor()
+
+        # Обновление статуса заказа на 5
+        cur.execute('UPDATE "Order" SET order_status_id = 5 WHERE track_code = %s', (track_code,))
+        conn.commit()
+
+        return jsonify({"success": f"Статус заказа с трек-кодом {track_code} успешно изменен на 5."}), 200
+    except psycopg2.Error as e:
+        return jsonify({"error": f"Ошибка при обновлении статуса заказа: {e}"}), 500
+    finally:
+        if conn:
+            cur.close()
+            conn.close()
+
 @app.route('/sorting')
 def sorting_page():
     return render_template('sorting.html')
@@ -136,16 +183,13 @@ def get_order_details():
         cur = conn.cursor(cursor_factory=DictCursor)
 
         cur.execute('''
-    SELECT o.data_send_from_china, o.user_id, o.track_code, os.name AS order_status,
-           COALESCE(o.price, t.price) AS tarif_price, t.name AS tarif_name, o.massa, o.comment, o.sort_date
-    FROM "Order" o
-    JOIN Order_status os ON o.order_status_id = os.id
-    LEFT JOIN Tarif t ON t.id = COALESCE(o.tarif_id, 1)  
-    WHERE o.track_code = %s
-''', (track_code,))
-
-
-
+            SELECT o.data_send_from_china, o.user_id, o.track_code, os.name AS order_status,
+                   u.user_tarif, u.city_id, o.massa, o.po_obyome, o.comment, o.sort_date
+            FROM "Order" o
+            JOIN "User" u ON o.user_id = u.id
+            JOIN Order_status os ON o.order_status_id = os.id
+            WHERE o.track_code = %s
+        ''', (track_code,))
 
         order = cur.fetchone()
     except Exception as e:
@@ -156,38 +200,65 @@ def get_order_details():
         conn.close()
 
     if order:
+        city_id = order['city_id']
+        city_name = None
+        try:
+            conn = get_database_connection()
+            cur = conn.cursor(cursor_factory=DictCursor)
+
+            cur.execute('SELECT name FROM City WHERE id = %s', (city_id,))
+            city = cur.fetchone()
+            if city:
+                city_name = city['name']
+        except Exception as e:
+            logging.error(f'Ошибка при запросе к базе данных для получения информации о городе: {e}')
+        finally:
+            cur.close()
+            conn.close()
+
+        if order['po_obyome']:
+            price = calculate_price_by_volume(order['massa'], order['dlina'], order['glubina'], order['shirina'])
+        else:
+            user_tarif = order['user_tarif'] if order['user_tarif'] else Decimal('0.0')
+            massa = order['massa'] if order['massa'] else Decimal('0.0')
+            price = user_tarif * massa
+
+
+        massa = order['massa'] if order['massa'] else 'Not specified'  
         order_details = {
-        'data_send_from_china': order['data_send_from_china'].strftime('%Y-%m-%d') if order['data_send_from_china'] else 'Не указано',
+        'data_send_from_china': order['data_send_from_china'].strftime('%Y-%m-%d') if order['data_send_from_china'] else 'Not specified',
         'user_id': order['user_id'],
         'track_code': order['track_code'],
         'order_status': order['order_status'],
-        'tarif_name': order['tarif_name'],
-        'tarif_price': str(order['tarif_price']),
-        'massa': order['massa'],
+        'city': city_name,
+        'massa': massa,  
+        'price': str(price),
         'comment': order['comment'],
         'sort_date': order['sort_date']
-    }
+        }
         return jsonify(order_details)
-
     else:
         logging.error('Заказ с таким трек-кодом не найден')
         return jsonify({'error': 'Заказ с таким трек-кодом не найден'}), 404
 
+def calculate_price_by_volume(massa, dlina, glubina, shirina):
+    volume = dlina * glubina * shirina
+    price_per_cubic_meter = 100
+    price = volume * price_per_cubic_meter
+    return price
 
 @app.route('/save_order_details', methods=['POST'])
 def save_order_details():
     data = request.json
     track_code = data.get('track_code')
-    price = data.get('price')
-    tarif_id = data.get('tarif_id')
     user_id = data.get('user_id')
-    massa = data.get('massa')
-    has_obreshetka = data.get('has_obreshetka')
-    dlina = data.get('dlina') if data.get('dlina') else None
-    shirina = data.get('shirina') if data.get('shirina') else None
-    glubina = data.get('glubina') if data.get('glubina') else None
+    massa = float(data.get('massa'))
+    po_obyome = data.get('po_obyome')
+    dlina = data.get('dlina')
+    shirina = data.get('shirina')
+    glubina = data.get('glubina')
     comment = data.get('comment')
-
+    print(data)
     if not track_code:
         logging.error('Трек-код не предоставлен')
         return jsonify({'error': 'Трек-код не предоставлен'}), 400
@@ -196,22 +267,36 @@ def save_order_details():
         conn = get_database_connection()
         cur = conn.cursor()
 
-        # Если price не указан, получаем значение по умолчанию из таблицы Tarif
-        if price is None:
-            cur.execute('SELECT id, price FROM Tarif WHERE id = 1')
-            tarif_default = cur.fetchone()
-            tarif_id = tarif_default[0]
-            price = tarif_default[1]
+        cur.execute('SELECT city_id, user_tarif FROM "User" WHERE id = %s', (user_id,))
+        user_data = cur.fetchone()
+        if not user_data:
+            logging.error('Пользователь с указанным ID не найден')
+            return jsonify({'error': 'Пользователь с указанным ID не найден'}), 400
 
-        # Расчёт общей суммы
-        amount = float(massa) * float(price)
+        city_id = user_data[0]
+        user_tarif = user_data[1]
 
-        # Обновление заказа с новыми данными
+        dlina = float(dlina) if dlina else None
+        shirina = float(shirina) if shirina else None
+        glubina = float(glubina) if glubina else None
+
+        if po_obyome:
+            price = calculate_price_by_volume(massa, dlina, glubina, shirina)
+        else:
+            price = float(user_tarif) * massa
+
+        if user_tarif != 350:
+            discount_amount = 350 * massa - price
+        else:
+            discount_amount = 0
+
+        amount = price 
+
         cur.execute('''
             UPDATE "Order"
-            SET user_id=%s, massa=%s, price=%s, amount=%s, has_obreshetka=%s, dlina=%s, shirina=%s, glubina=%s, comment=%s, order_status_id=2, sort_date=CURRENT_TIMESTAMP, tarif_id=%s
+            SET user_id=%s, user_tarif=%s, city_id=%s, massa=%s, po_obyome=%s, dlina=%s, shirina=%s, glubina=%s, amount=%s, discount_amount=%s, comment=%s, order_status_id=2, sort_date=CURRENT_TIMESTAMP
             WHERE track_code=%s
-        ''', (user_id, massa, price, amount, has_obreshetka, dlina, shirina, glubina, comment, tarif_id, track_code))
+        ''', (user_id, user_tarif, city_id, massa, po_obyome, dlina, shirina, glubina, amount, discount_amount, comment, track_code))
 
         conn.commit()
     except Exception as e:
@@ -223,15 +308,15 @@ def save_order_details():
 
     return jsonify({'success': 'Данные заказа успешно обновлены'})
 
+
 @app.route('/finish_sorting', methods=['POST'])
 def finish_sorting():
     try:
         conn = get_database_connection()
         cur = conn.cursor()
 
-        # Изменяем статус с 2 на 3 для всех заказов
         cur.execute('UPDATE "Order" SET order_status_id = 3 WHERE order_status_id = 2 RETURNING id')
-        affected_rows = cur.rowcount  # Количество измененных строк
+        affected_rows = cur.rowcount  
 
         conn.commit()
         return jsonify({'message': f'{affected_rows} заказов отсортировано'})
@@ -256,35 +341,30 @@ def get_all_orders():
         cur = conn.cursor(cursor_factory=DictCursor)
 
         cur.execute('''
-               SELECT 
-    o.data_send_from_china, 
-    o.track_code, 
-    os.name AS order_status, 
-    t.price AS tarif_price,  -- Используем столбец "price" из таблицы "Tarif"
-    t.name AS tarif_name, 
-    o.massa, 
-    o.comment, 
-    o.sort_date, 
-    o.amount,
-    u.name || ' ' || u.surname AS client_fio, 
-    u.id AS user_id, 
-    c.name AS city_name, 
-    ct.phone_num, 
-    ct.extra_phone_num, 
-    ct.tg_nickname, 
-    ct.email,
-    CASE 
-        WHEN t.id = 1 THEN ((t.price - COALESCE(t.price)) / t.price * 100) 
-        ELSE NULL 
-    END AS discount
-FROM "Order" o
-JOIN Order_status os ON o.order_status_id = os.id
-LEFT JOIN Tarif t ON t.id = COALESCE(o.tarif_id, 1)
-LEFT JOIN "User" u ON o.user_id = u.id
-LEFT JOIN City c ON u.city_id = c.id
-LEFT JOIN Contact ct ON u.id = ct.user_id;
-
-
+            SELECT 
+                o.id,
+                o.data_send_from_china, 
+                o.track_code, 
+                os.name AS order_status, 
+                o.user_tarif,
+                o.massa, 
+                o.comment, 
+                o.sort_date, 
+                o.amount,
+                o.payment_status,
+                u.name || ' ' || u.surname AS client_fio, 
+                u.id AS user_id, 
+                c.name AS city_name, 
+                ct.phone_num, 
+                ct.extra_phone_num, 
+                ct.tg_nickname, 
+                ct.email,
+                o.discount_amount
+            FROM "Order" o
+            JOIN Order_status os ON o.order_status_id = os.id
+            LEFT JOIN "User" u ON o.user_id = u.id
+            LEFT JOIN City c ON u.city_id = c.id
+            LEFT JOIN Contact ct ON u.id = ct.user_id;
         ''')
 
         orders = cur.fetchall()
@@ -298,11 +378,11 @@ LEFT JOIN Contact ct ON u.id = ct.user_id;
     orders_data = []
     for order in orders:
         order_details = {
+            'id': order['id'],
             'data_send_from_china': order['data_send_from_china'].strftime('%Y-%m-%d') if order['data_send_from_china'] else 'Не указано',
             'track_code': order['track_code'],
             'order_status': order['order_status'],
-            'tarif_name': order['tarif_name'],
-            'tarif_price': str(order['tarif_price']),
+            'user_tarif': str(order['user_tarif']),
             'massa': order['massa'],
             'comment': order['comment'],
             'client_fio': order['client_fio'],
@@ -314,11 +394,224 @@ LEFT JOIN Contact ct ON u.id = ct.user_id;
             'email': order['email'],
             'sort_date': order['sort_date'].strftime('%Y-%m-%d %H:%M:%S') if order['sort_date'] else 'Не указано',
             'amount': str(order['amount']),
-            'discount': '{:.2f}%'.format(order['discount']) if order['discount'] is not None else 'Не расчитано'
+            'discount_amount': str(order['discount_amount']),
+            'payment_status':order['payment_status']
         }
         orders_data.append(order_details)
 
     return jsonify(orders_data)
+
+
+@app.route('/update_order_user', methods=['POST'])
+def update_order_user():
+    data = request.json
+    track_code = data.get('track_code')
+    new_user_id = data.get('new_user_id')
+
+    print(f"Received track code: {track_code}, new user ID: {new_user_id}")
+
+    try:
+        conn = get_database_connection()
+        cur = conn.cursor()
+
+        cur.execute('''
+            UPDATE "Order"
+            SET user_id = %s
+            WHERE track_code = %s
+        ''', (new_user_id, track_code))
+
+        conn.commit()
+
+        return jsonify({'success': True, 'message': 'Трек код в заказе успешно обновлен'})
+    except Exception as e:
+        conn.rollback()
+        logging.error(f'Ошибка при обновлении трек кода в заказе: {e}')
+        return jsonify({'error': 'Внутренняя ошибка сервера'}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+# _______________managers_______
+@app.route('/get_all_managers', methods=['GET'])
+def get_all_managers():
+    try:
+        conn = get_database_connection()
+        cur = conn.cursor(cursor_factory=DictCursor)
+
+        cur.execute('''
+            SELECT m.id, m.name, m.surname, c.name AS city_name, m.phone_number, m.login, m.password
+            FROM Manager m
+            JOIN City c ON m.city_id = c.id
+        ''')
+
+        managers = cur.fetchall()
+    except Exception as e:
+        # Обработка ошибки подключения к базе данных
+        return jsonify({'error': 'Ошибка при подключении к базе данных'}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+    managers_data = []
+    for manager in managers:
+        manager_details = {
+            'id': manager['id'],
+            'name': manager['name'],
+            'surname': manager['surname'],
+            'city_name': manager['city_name'],
+            'phone_number': manager['phone_number'],
+            'login': manager['login'],
+            'password': manager['password']
+        }
+        managers_data.append(manager_details)
+
+    return jsonify(managers_data)
+
+@app.route('/get_all_cities', methods=['GET'])
+def get_all_cities():
+    try:
+        conn = get_database_connection()
+        cur = conn.cursor()
+
+        cur.execute('SELECT id, name FROM City')
+        cities = [{'id': row[0], 'name': row[1]} for row in cur.fetchall()]
+
+        return jsonify(cities)
+    except Exception as e:
+        return jsonify({'error': 'Ошибка при получении списка городов'}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+# Маршрут для добавления нового менеджера
+@app.route('/add_manager', methods=['POST'])
+def add_manager():
+    data = request.json
+
+    name = data.get('name')
+    surname = data.get('surname')
+    city_id = data.get('city_id')
+    phone_number = data.get('phone_number')
+    login = data.get('login')
+    password = data.get('password')
+
+    try:
+        conn = get_database_connection()
+        cur = conn.cursor()
+
+        cur.execute('''
+            INSERT INTO Manager (name, surname, city_id, phone_number, login, password)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        ''', (name, surname, city_id, phone_number, login, password))
+
+        conn.commit()
+
+        return jsonify({'success': True, 'message': 'Менеджер успешно добавлен'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': 'Ошибка при добавлении менеджера'}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+#------------------ Полезные ресурсы----------------
+@app.route('/add_resource', methods=['POST'])
+def add_resource():
+    try:
+        resource_name = request.form['resourceName']
+        resource_description = request.form['resourceDescription']
+        resource_link = request.form['resourceLink']
+        resource_rate = request.form['resourceRate']
+
+        conn = get_database_connection()
+        cur = conn.cursor()
+        
+        try:
+            cur.execute('''
+                        INSERT INTO Usefull_resource (name, description, link, rate)
+                         VALUES (%s, %s, %s, %s)
+                        ''',
+            (resource_name, resource_description, resource_link, resource_rate))
+
+            conn.commit()
+            print("Data inserted into database successfully!")
+            return jsonify({'success': True})
+        except Exception as e:
+            conn.rollback()
+            print("Error inserting data into database:", str(e))
+            return jsonify({'error': str(e)})
+        finally:
+            cur.close()
+            conn.close()
+    except KeyError as ke:
+        return jsonify({'error': 'Missing key in form data: {}'.format(ke)})
+
+@app.route('/add_photos', methods=['POST'])
+def add_photos():
+    try:
+        resource_id = request.form['resourceId']
+        photo_links = [
+            request.form['photoLink1'],
+            request.form['photoLink2'],
+            request.form['photoLink3']
+        ]
+
+        conn = get_database_connection()
+        cur = conn.cursor()
+
+        try:
+            for photo_link in photo_links:
+                cur.execute('''
+                            INSERT INTO ResourcePhotos (resource_id, photo_link)
+                            VALUES (%s, %s)
+                            ''',
+                            (resource_id, photo_link))
+            conn.commit()
+            print("Photos inserted into database successfully!")
+            return jsonify({'success': True})
+        except Exception as e:
+            conn.rollback()
+            print("Error inserting photos into database:", str(e))
+            return jsonify({'error': str(e)})
+        finally:
+            cur.close()
+            conn.close()
+    except KeyError as ke:
+        return jsonify({'error': 'Missing key in form data: {}'.format(ke)})
+
+
+@app.route('/get_all_resources', methods=['GET'])
+def get_all_resources():
+    try:
+        conn = get_database_connection()
+        cur = conn.cursor()
+
+        cur.execute('SELECT * FROM Usefull_resource')
+        resources = cur.fetchall()
+
+        resource_list = []
+        for resource in resources:
+            resource_dict = {
+                'id': resource[0],
+                'name': resource[1],
+                'description': resource[2],
+                'link': resource[3],
+                'rate': resource[4]
+            }
+            resource_list.append(resource_dict)
+
+        return jsonify(resource_list)
+    except Exception as e:
+        return jsonify({'error': str(e)})
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route('/use_resources')
+def res_page():
+    return render_template('use_res.html')  
+
 
 
 #-------------USERS---------------
@@ -335,7 +628,7 @@ def get_all_users():
 
         cur.execute('''
             SELECT 
-                u.id, u.name, u.surname, 
+                u.id, u.name, u.surname, u.user_tarif,
                 c.name AS city_name, 
                 ct.phone_num, ct.extra_phone_num, ct.tg_nickname, ct.email
             FROM "User" u
@@ -357,6 +650,7 @@ def get_all_users():
             'id': user['id'],
             'name': user['name'],
             'surname': user['surname'],
+            'user_tarif': user['user_tarif'],
             'city_name': user['city_name'],
             'phone_num': user['phone_num'],
             'extra_phone_num': user['extra_phone_num'],
@@ -369,6 +663,7 @@ def get_all_users():
     return jsonify(users_data)
 
 
+
 @app.route('/get_user_by_id/<user_id>', methods=['GET'])
 def get_user_by_id(user_id):
     try:
@@ -377,7 +672,7 @@ def get_user_by_id(user_id):
 
         cur.execute('''
             SELECT
-                u.id, u.name, u.surname,
+                u.id, u.name, u.surname,u.user_tarif,
                 c.name AS city_name,
                 ct.phone_num, ct.extra_phone_num, ct.tg_nickname, ct.email
             FROM "User" u
@@ -394,6 +689,7 @@ def get_user_by_id(user_id):
             'id': user['id'],
             'name': user['name'],
             'surname': user['surname'],
+            'user_tarif':user['user_tarif'],
             'city_name': user['city_name'],
             'phone_num': user['phone_num'],
             'extra_phone_num': user['extra_phone_num'],
@@ -421,10 +717,19 @@ def update_user():
         cur = conn.cursor()
 
         cur.execute('''
-            UPDATE "User"
-            SET name = %s, surname = %s
-            WHERE id = %s
-        ''', (data['name'], data['surname'], user_id))
+            UPDATE "User" AS u
+            SET name = %s, surname = %s, user_tarif = %s
+            FROM Contact AS c
+            WHERE u.id = c.user_id AND u.id = %s
+        ''', (data['name'], data['surname'], data['user_tarif'], user_id))
+
+        conn.commit()
+
+        cur.execute('''
+            UPDATE Contact
+            SET phone_num = %s, extra_phone_num = %s, tg_nickname = %s
+            WHERE user_id = %s
+        ''', (data['phone_num'], data['extra_phone_num'], data['tg_nickname'], user_id))
 
         conn.commit()
 
@@ -442,7 +747,142 @@ def update_user():
 @app.route('/payment')
 def payment_page():
 
-    return render_template('payment.html')
+    return render_template('pay2.html')
+
+
+@app.route('/get_order_info', methods=['POST'])
+def get_order_info():
+    try:
+        track_code = request.form['trackCode']
+        conn = get_database_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        try:
+            cur.execute('''
+                        SELECT o.id, u.name AS user_name, u.surname, u.otchestvo, c.name AS city_name, o.user_tarif, os.name AS order_status, 
+                        o.massa, o.payment_status, o.amount, o.track_code
+                        FROM "Order" o
+                        JOIN "User" u ON o.user_id = u.id
+                        JOIN City c ON o.city_id = c.id
+                        JOIN order_status os ON o.order_status_id = os.id
+                        WHERE o.track_code = %s
+                        ''',
+                        (track_code,))
+            order_info = cur.fetchone()
+            if order_info:
+                return jsonify({
+                    'success': True,
+                    'order_info': order_info
+                })
+            else:
+                return jsonify({'error': 'Order not found'})
+        except Exception as e:
+            return jsonify({'error': str(e)})
+        finally:
+            cur.close()
+            conn.close()
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/payment_types', methods=['GET'])
+def get_payment_types():
+    try:
+        conn = get_database_connection()
+        cur = conn.cursor()
+        cur.execute('SELECT id, name FROM payment_type')
+        payment_types = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        payment_types_dict = [{'id': payment_type[0], 'name': payment_type[1]} for payment_type in payment_types]
+        
+        return jsonify({'payment_types': payment_types_dict})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+
+from flask import jsonify, request
+
+@app.route('/pay_selected_orders', methods=['POST'])
+def pay_selected_orders():
+    try:
+        # Получаем данные из запроса
+        data = request.json
+        manager_id = data.get('manager_id')
+        payment_type_name = data.get('payment_type_name')
+        track_codes = data.get('track_codes')
+
+        # Получаем текущую дату
+        current_date = datetime.now().strftime('%Y-%m-%d')
+
+        # Получаем ID типа оплаты из таблицы payment_type по его имени
+        conn = get_database_connection()
+        cur = conn.cursor()
+        
+
+        # Подготавливаем SQL-запрос для обновления выбранных заказов
+        query = '''
+        UPDATE "Order"
+        SET order_status_id = 4,
+        payment_type_id = %s,
+        pay_date = %s,
+        payment_status = TRUE,
+        manager_id = %s
+        WHERE order_status_id <> 4 AND track_code IN %s
+        '''
+
+        # Выполняем обновление заказов
+        cur.execute(query, (payment_type_name, current_date, manager_id, tuple(track_codes)))
+        conn.commit()
+
+        # Закрываем соединение с базой данных
+        cur.close()
+        conn.close()
+
+        # Возвращаем успешный результат
+        return jsonify({'success': 'Selected orders have been paid successfully'})
+    except Exception as e:
+        # В случае ошибки возвращаем сообщение об ошибке
+        return jsonify({'error': str(e)})
+
+
+#STATISTS
+@app.route('/calculate_daily_payment', methods=['GET'])
+def calculate_daily_payment():
+    try:
+        # Получаем текущую дату
+        current_date = date.today().strftime('%Y-%m-%d')
+
+        # Запрос для получения суммы заказов, оплаченных сегодня
+        query = '''
+        SELECT SUM(amount) FROM "Order"
+        WHERE pay_date = %s
+        '''
+        
+        # Выполняем запрос
+        conn = get_database_connection()
+        cur = conn.cursor()
+        cur.execute(query, (current_date,))
+        total_amount = cur.fetchone()[0]
+
+        # Если нет оплаченных заказов сегодня, вернем 0
+        if total_amount is None:
+            total_amount = 0
+
+        # Закрываем соединение с базой данных
+        cur.close()
+        conn.close()
+
+        # Возвращаем сумму оплаченных заказов сегодня
+        return jsonify({'total_amount': total_amount})
+    except Exception as e:
+        # В случае ошибки возвращаем сообщение об ошибке
+        return jsonify({'error': str(e)})
+
+
+@app.route('/payment2')
+def pay2method():
+    return render_template("payment.html")
 
 @app.route('/get_user_orders/<int:user_id>', methods=['GET'])
 def get_user_orders(user_id):
@@ -452,21 +892,17 @@ def get_user_orders(user_id):
 
         cur.execute('''
             SELECT o.data_send_from_china, o.track_code, os.name AS order_status, 
-                   COALESCE(o.price, t.price) AS tarif_price, t.name AS tarif_name, 
+                   o.user_tarif, o.discount_amount,
                    o.massa, o.comment, o.sort_date, o.amount,
                    u.name || ' ' || u.surname AS client_fio, u.id AS user_id, 
                    c.name AS city_name, 
-                   ct.phone_num, ct.extra_phone_num, ct.tg_nickname, ct.email,
-                   CASE 
-                       WHEN t.id = 1 THEN ((t.price - COALESCE(o.price, t.price)) / t.price * 100) 
-                       ELSE NULL 
-                   END AS discount
+                   ct.phone_num
+                   
             FROM "Order" o
             JOIN Order_status os ON o.order_status_id = os.id
-            LEFT JOIN Tarif t ON t.id = COALESCE(o.tarif_id, 1)
             LEFT JOIN "User" u ON o.user_id = u.id
-            LEFT JOIN City c ON u.city_id = c.id
-            LEFT JOIN Contact ct ON u.id = ct.user_id
+            LEFT JOIN city c ON u.city_id = c.id
+            LEFT JOIN contact ct ON u.id = ct.user_id
             WHERE o.user_id = %s AND o.order_status_id = 3
         ''', (user_id,))
 
@@ -796,7 +1232,11 @@ def user_page():
 
 @app.route('/ver_shopped')
 def ver_shop():
-    return render_template('tables.html')
+    user_id = session.get('user_id')
+    if user_id:
+        return render_template('tables.html')
+    else:
+        return redirect(url_for('login'))
 
 
 @app.route('/user_stat')
@@ -841,6 +1281,7 @@ def user_stat():
         return render_template('stat.html', user_id=user_id, order_counts=order_counts, total_amount=total_amount, total_weight=total_weight, dates=dates, counts=counts, amount_dates=amount_dates, amounts=amounts, last_month_count=last_month_count, last_month_order_amount=last_month_order_amount)
     else:
         return redirect(url_for('login'))
+import datetime
 
 def get_order_count_last_month(user_id):
     current_date = datetime.datetime.now().date()
@@ -1013,6 +1454,190 @@ def forbidden_error(error):
 @app.errorhandler(500)
 def internal_error(error):
     return render_template('pages-500.html'), 500
+
+
+
+#-----------lessons
+@app.route('/lessons')
+def lesson_page():
+    return render_template('lessons.html')
+
+import time
+
+@app.route('/get_all_categories', methods=['GET'])
+def get_all_categories():
+    try:
+
+        conn = get_database_connection()
+        cur = conn.cursor()
+        cur.execute('SELECT * FROM Lesson_category')
+        categories = cur.fetchall()
+        category_list = []
+        for category in categories:
+            category_dict = {
+                'category_id': category[0],
+                'category_name': category[1],
+                'category_image': category[2],
+                'category_description': category[3]
+            }
+            category_list.append(category_dict)
+
+        return jsonify(category_list)
+    except Exception as e:
+        return jsonify({'error': str(e)})
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route('/create_category', methods=['POST'])
+def create_category():
+    category_name = request.form['categoryName']
+    category_image = request.form['categoryImage']
+    category_description = request.form.get('categoryDescription', '')  # Пустая строка, если значение не указано
+
+    try:
+        conn = get_database_connection()
+        cur = conn.cursor()
+        # Выполняем запрос к базе данных для создания категории
+        cur.execute('''
+            INSERT INTO lesson_category (category_name, category_image, category_description)
+            VALUES (%s, %s, %s)
+        ''', (category_name, category_image, category_description))
+        conn.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        conn.rollback()
+        app.logger.error("Ошибка при создании категории: %s", str(e))  # Выводим ошибку в лог
+        return jsonify({'error': str(e)})
+    finally:
+        cur.close()
+        conn.close()
+
+@app.route('/delete_category/<int:category_id>', methods=['DELETE'])
+def delete_category(category_id):
+    try:
+        conn = get_database_connection()
+        cur = conn.cursor()
+        cur.execute('DELETE FROM lesson_category WHERE category_id = %s', (category_id,))
+        conn.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        conn.rollback()
+        app.logger.error("Ошибка при удалении категории: %s", str(e))  
+        return jsonify({'error': str(e)})
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route('/get_all_lessons')
+@cache.cached(timeout=3600) 
+def get_all_lessons():
+    try:
+        app.logger.info("Запрашиваем данные из кэша...")
+        conn = get_database_connection()
+        cur = conn.cursor()
+        cur.execute('SELECT * FROM Lesson')
+        lessons = cur.fetchall()
+        lesson_list = []
+        for lesson in lessons:
+            lesson_dict = {
+                'lesson_id': lesson[0],
+                'lesson_name': lesson[1],
+                'lesson_description': lesson[2],
+                'video_url': lesson[3],
+                'lesson_priority': lesson[4],
+                'lesson_category_id': lesson[5]
+            }
+            lesson_list.append(lesson_dict)
+        app.logger.info("Данные получены из кэша: %s", request.path)
+        return jsonify(lesson_list)
+    except Exception as e:
+        app.logger.error("Ошибка при получении всех уроков: %s", str(e))
+        return jsonify({'error': str(e)})
+    finally:
+        if cur is not None:
+            cur.close()
+        conn.close()
+
+
+@app.route('/create_lesson', methods=['POST'])
+def create_lesson():
+    lesson_name = request.form['lessonName']
+    lesson_description = request.form['lessonDescription']
+    video_url = request.form['videoUrl']
+    lesson_priority = request.form['lessonPriority']
+    lesson_category_id = request.form['categoryId']
+
+    try:
+        conn = get_database_connection()
+        cur = conn.cursor()
+        cur.execute('''
+            INSERT INTO Lesson (lesson_name, lesson_description, video_url, lesson_priority, lesson_category_id)
+            VALUES (%s, %s, %s, %s, %s)
+        ''', (lesson_name, lesson_description, video_url, lesson_priority, lesson_category_id))
+        conn.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)})
+    finally:
+        cur.close()
+        conn.close()
+
+
+
+@app.route('/get_all_items', methods=['GET'])
+def get_all_items():
+    try:
+        conn = get_database_connection()
+        cur = conn.cursor()
+
+        cur.execute('''
+            SELECT item.id, item.name, item.description, item.massa, 
+                   item.dlina, item.glubina, item.shirina, item.price,
+                   item.material, item.v_nalichii, Item_category.name AS category_name
+            FROM item
+            JOIN Item_category ON item.item_category_id = Item_category.id
+        ''')
+        
+        items = cur.fetchall()
+        items_list = []
+        
+        for item in items:
+            item_dict = {
+                'id': item[0],
+                'item_name': item[1],
+                'item_description': item[2],
+                'item_massa': item[3],
+                'item_dlina': item[4],
+                'item_glubina': item[5],
+                'item_shirina': item[6],
+                'item_price': item[7],
+                'item_material': item[8],
+                'v_nalichii': item[9],
+                'category_name': item[10]  # Название категории
+            }
+            items_list.append(item_dict)
+
+        return jsonify(items_list)
+    except Exception as e:
+        return jsonify({'error': str(e)})
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route('/des_items')
+def item_page():
+    return render_template("des_items.html")
+
+
+
+
+
+
 # def create_user_in_database(name, surname, city_id, phone_num, extra_phone_num, tg_nickname, email):
 #     connection = get_database_connection()
 #     cursor = connection.cursor()
